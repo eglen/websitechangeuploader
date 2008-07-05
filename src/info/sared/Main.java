@@ -10,9 +10,11 @@ import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,7 +56,6 @@ public class Main extends JPanel implements ActionListener,
     JFileChooser                fc;
     File                        topLevelDir;
     Hasher                      hasher;
-    HashMap<String, String> previousUpload;
     
     public Main()
     {
@@ -96,7 +97,7 @@ public class Main extends JPanel implements ActionListener,
     {
         // this.getParent().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
         // Get an array of all the Files
-        ArrayList<File> fileList = walkDirectoryTree(mainDir);
+        
 
         /*
          * taskProgress = new JProgressBar(0, 100);
@@ -106,30 +107,12 @@ public class Main extends JPanel implements ActionListener,
 
         directoryButton.setEnabled(false);
 
-        hasher = new Hasher(fileList, previousUpload);
+        hasher = new Hasher(mainDir);
         hasher.addPropertyChangeListener(this);
         hasher.execute();
 
         // Get a map with all the paths
         // HashMap<File,String> fileMap = walkDirectoryTree(file);
-    }
-
-    private ArrayList<File> walkDirectoryTree(File directory)
-    {
-        ArrayList<File> masterFileList = new ArrayList<File>();
-        ArrayList<File> files = new ArrayList<File>(Arrays.asList(directory
-                .listFiles()));
-        for (File file : files)
-        {
-            if (file.isDirectory())
-            {
-                masterFileList.addAll(walkDirectoryTree(file));
-            } else
-            {
-                masterFileList.add(file);
-            }
-        }
-        return masterFileList;
     }
 
     /**
@@ -155,7 +138,7 @@ public class Main extends JPanel implements ActionListener,
         if (evt.getPropertyName().equals("progress"))
         {
             int progress = (Integer) evt.getNewValue();
-            System.out.println("Progess: " + progress);
+            //System.out.println("Progess: " + progress);
             taskProgress.setValue(progress);
         }
     }
@@ -170,7 +153,6 @@ public class Main extends JPanel implements ActionListener,
             if (returnVal == JFileChooser.APPROVE_OPTION)
             {
                 File file = fc.getSelectedFile();
-                // This is where a real application would open the file.
                 log.append("Analyzing: " + file.getName() + "." + newline);
                 topLevelDir = file;
                 try
@@ -200,22 +182,15 @@ public class Main extends JPanel implements ActionListener,
             {
                 // TODO Auto-generated catch block
                 e1.printStackTrace();
+            } catch (IOException ioe)
+            {
+                // TODO Auto-generated catch block
+                ioe.printStackTrace();
             }
         }
     }
 
-    private void loadPreviousUpload()
-    {
-        // See if we have any existing lists of data
-        previousUpload = new HashMap<String, String>();
-        File listDir = new File(topLevelDir.getAbsolutePath()
-                + "/.iWebUploaderConfig/");
-        if (listDir.exists() && listDir.isDirectory())
-        {
-            previousUpload = loadHashFile(new File(listDir.getAbsolutePath()
-                    + "lastUpload.dat"));
-        }
-    }
+
 
     private HashMap<String, String> loadHashFile(File file)
     {
@@ -230,6 +205,8 @@ public class Main extends JPanel implements ActionListener,
             String line = reader.readLine();
             while (line != null)
             {
+                line.trim();
+                //System.out.println("Read line: " + line);
                 fullText = fullText.concat(line);
                 line = reader.readLine();
             }
@@ -252,7 +229,7 @@ public class Main extends JPanel implements ActionListener,
             String[] entry = entries[x].split("=");
             if (entry.length == 2)
             {
-                loadedFile.put(entry[0], entry[1]);
+                loadedFile.put(entry[0].trim(), entry[1].trim());
             } else
             {
                 System.err
@@ -264,7 +241,7 @@ public class Main extends JPanel implements ActionListener,
         return loadedFile;
     }
 
-    private void updateHashFile(HashMap<String,String> completedFilesMap)
+    /*private void updateHashFile(HashMap<String,String> completedFilesMap)
     {
         Set<Entry<String,String>> completedFiles = completedFilesMap.entrySet();
         for(Entry<String,String> entry : completedFiles)
@@ -273,55 +250,182 @@ public class Main extends JPanel implements ActionListener,
         }
         String rawString = previousUpload.toString();
         String outputString = rawString.substring(1, rawString.length()-2);
-    }
+    }*/
     
-    private void doUpload() throws InterruptedException, ExecutionException
+    private void doUpload() throws InterruptedException, ExecutionException, IOException
     {
-        HashMap<String,String> completedFiles = new HashMap<String,String>();
+        //HashMap<String,String> completedFiles = new HashMap<String,String>();
         //Set<String> keys = changedFiles.keySet();
         
         Set<Entry<String,String>> changedFiles = hasher.get().entrySet();
         for(Entry<String,String> entry : changedFiles)
         {
-            boolean uploadSuccessful = true;
+            boolean uploadSuccessful = copyFile(entry.getKey(),topLevelDir.getCanonicalPath());
             if(uploadSuccessful)
             {
-                completedFiles.put(entry.getKey(), entry.getValue());
+                //completedFiles.put(entry.getKey(), entry.getValue());
+                updateHashFile(entry);
             }
         }
-        updateHashFile(completedFiles);
+        //updateHashFile(completedFiles);
+    }
+    
+    private boolean copyFile(String file, String topLevelDir)
+    {
+        
+        
+        //Find the directory
+        String directory = "";
+        if(file.lastIndexOf("/") != -1)
+        {
+            directory = file.substring(0, file.lastIndexOf("/"));
+        }
+        String dircmd = "mkdir -p \"" + "/Users/eglen/Sites/iWebUploader/" + directory + "\"";
+        
+        
+        String cmd = "cp -v \"" + topLevelDir + "/" + file +"\" \"/Users/eglen/Sites/iWebUploader/" + file + "\"";
+        
+        File outputDir = new File("/Users/eglen/Sites/");
+        outputDir.mkdir();
+        File outputFile = new File(outputDir.getAbsolutePath() + "/copyscript.sh");
+            //System.out.println("Output file: " + outputFile.getAbsolutePath());
+            BufferedWriter writer;
+
+            try
+            {
+                writer = new BufferedWriter(new FileWriter(outputFile,true));
+                writer.write(dircmd);
+                writer.newLine();
+                writer.write(cmd);
+                writer.newLine();
+                writer.close();
+            } catch (IOException e)
+            {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        
+        return true;
+    }
+
+    private void updateHashFile(Entry<String, String> entry)
+    {
+        HashMap<String,String> hashes = loadPreviouslyUploadedFiles();
+        hashes.put(entry.getKey(), entry.getValue());
+        
+        writeHashFile(hashes);
+    }
+
+    private void writeHashFile(HashMap<String, String> hashes)
+    {
+        String rawString = hashes.toString();
+        //System.out.println("Raw String: " + rawString);
+        String outputString = rawString.substring(1, rawString.length()-1);
+        //System.out.println("Writing to file: " + outputString);
+        
+        File outputDir = new File(topLevelDir.getAbsolutePath()
+                + "/.iWebUploaderConfig");
+        outputDir.mkdir();
+            File outputFile = new File(outputDir.getAbsolutePath() + "/lastUpload.dat");
+            outputFile.delete();
+            //System.out.println("Output file: " + outputFile.getAbsolutePath());
+            BufferedWriter writer;
+
+            try
+            {
+                writer = new BufferedWriter(new FileWriter(outputFile,false));
+                writer.write(outputString);
+                writer.newLine();
+                writer.close();
+            } catch (IOException e)
+            {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            
+        
+    }
+
+    private ArrayList<File> walkDirectoryTree(File directory)
+    {
+        ArrayList<File> masterFileList = new ArrayList<File>();
+        ArrayList<File> files = new ArrayList<File>(Arrays.asList(directory
+                .listFiles()));
+        for (File file : files)
+        {
+            if (file.isDirectory())
+            {
+                masterFileList.addAll(walkDirectoryTree(file));
+            } else
+            {
+                masterFileList.add(file);
+            }
+        }
+        return masterFileList;
+    }
+    
+    private HashMap<String,String> loadPreviouslyUploadedFiles()
+    {
+        // See if we have any existing lists of data
+        HashMap<String,String> previousUpload = new HashMap<String, String>();
+        File listDir = new File(topLevelDir.getAbsolutePath()
+                + "/.iWebUploaderConfig/");
+        if (listDir.exists() && listDir.isDirectory())
+        {
+            File inputFile = new File(listDir.getAbsolutePath()
+                    + "/lastUpload.dat");
+            if(inputFile.exists())
+            {
+                previousUpload = loadHashFile(inputFile);
+            }
+        }
+        return previousUpload;
     }
 
     public class Hasher extends SwingWorker<HashMap<String, String>, String>
     {
-
-        ArrayList<File>         fileList;
-        HashMap<String, String> previousUpload;
+        File                  mainDir;
         HashMap<String, String> changedHashes;
         double                  progress = 0.0;
 
-        public Hasher(ArrayList<File> fileList,
-                HashMap<String, String> previousUpload)
+        public Hasher(File directory)
         {
-            this.fileList = fileList;
-            this.previousUpload = previousUpload;
+            this.mainDir = directory;
         }
-
+        
         @Override
-        protected HashMap<String, String> doInBackground() throws Exception
+        protected HashMap<String,String> doInBackground()
         {
+            ArrayList<File> fileList = walkDirectoryTree(mainDir);
+            //System.out.println("FileList size: " + fileList.size());
+            HashMap<String,String> previousUpload = loadPreviouslyUploadedFiles();
+            //System.out.println("Loaded");
             changedHashes = new HashMap<String, String>();
             double step = 100.0 / (double) fileList.size();
             setProgress((int) progress);
-            System.out.println("FileList size: " + fileList.size());
+            
             // Head through and hash em all
             for (File file : fileList)
             {
+                
                 String filePath = file.getAbsolutePath();
                 String relativePath = filePath.substring(topLevelDir
                         .getAbsolutePath().length() + 1);
                 publish(relativePath);
-                String hash = MD5.asHex(MD5.getHash(file));
+                String hash ="";
+                try
+                {
+                    hash = MD5.asHex(MD5.getHash(file));
+                } catch (IOException e)
+                {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+                //System.out.println("Has this key been loaded?: " + hash + " : " + previousUpload.containsKey(relativePath));
+                if(previousUpload.containsKey(relativePath))
+                {
+                    //System.out.println("Existing Hash: " + previousUpload.get(relativePath) + " New Hash: " + hash);
+                }
                 if (!previousUpload.containsKey(relativePath))
                 {
                     changedHashes.put(relativePath, hash);
@@ -329,40 +433,54 @@ public class Main extends JPanel implements ActionListener,
                 {
                     changedHashes.put(relativePath, hash);
                 }
-
+                //changedHashes.put(relativePath, hash);
+                
+                
                 progress += step;
-                System.out.println("Progress: " + progress);
+                //System.out.println("Progress end of loop: " + progress);
                 setProgress((int) Math.floor(progress));
             }
             return changedHashes;
         }
-
+        
+        @Override
         protected void process(List<String> chunks)
         {
-            // for (String path : chunks) {
+            /*System.out.println("Process called");
+            for (String path : chunks) {
+                System.out.println(path);
             // log.append(path + "\n");
-            // }
+            }*/
         }
 
+        @Override
         protected void done()
         {
             setProgress(100);
-            log.append("Done Checking Changes\nChanged Files:\n");
+            
+            log.append("Analysis Complete\n");
+            if(changedHashes==null || changedHashes.isEmpty())
+            {
+                log.append("No changed files\n");
+            }
+            else
+            {
             Set<String> changedKeys = changedHashes.keySet();
 
             for (String key : changedKeys)
             {
                 log.append(key + "\n");
             }
-            log.append("There are " + changedKeys.size() + " changed files");
+            log.append("----\nThere are " + changedKeys.size() + " changed files\n----\n");
             uploadChangesButton.setText("Upload " + changedKeys.size()
                     + " changed files");
             uploadChangesButton.setEnabled(true);
             directoryButton.setEnabled(true);
+            }
         }
 
     }
-
+    
     /**
      * @param args
      */
