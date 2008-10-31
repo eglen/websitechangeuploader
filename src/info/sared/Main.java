@@ -234,6 +234,11 @@ public class Main extends JPanel implements ActionListener,
             {
                 System.err
                         .println("Badly formed data file - contact edward@glencomm.com");
+                System.err.println("length: " + entry.length );
+                for(int i = 0; i < entry.length; i++)
+                {
+                        System.err.println("Entry: " + entry[i]);
+                }
                 log
                         .append("Badly formed data file - this shouldn't happen.  Please contact edward@glencomm.com");
             }
@@ -288,7 +293,7 @@ public class Main extends JPanel implements ActionListener,
         File outputDir = new File("/Users/eglen/Sites/");
         outputDir.mkdir();
         File outputFile = new File(outputDir.getAbsolutePath() + "/copyscript.sh");
-            //System.out.println("Output file: " + outputFile.getAbsolutePath());
+            System.out.println("Output file: " + outputFile.getAbsolutePath());
             BufferedWriter writer;
 
             try
