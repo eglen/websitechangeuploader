@@ -1,0 +1,1 @@
+Certain website creation tools, such as iWeb in local mode, publish a completely new version of your site rather than just the changes.  For large sites, this is an unreasonable maintenance burden.  This tool will keep hash information from previous uploads to be able to identify and upload only those files which have changed.
